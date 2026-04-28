@@ -336,11 +336,39 @@ const createStoryboardFrame = ({ rotation = 0, scale = 1, slices }) => ({
 });
 
 const valuesWheelFrameStops = [0, 0.16, 0.32, 0.52, 0.76, 1];
+const valuesWheelFrameLabels = [
+  "Start",
+  "Grow",
+  "Add colors",
+  "Push out",
+  "Full wheel",
+  "Final",
+];
 const valuesWheelStartRotation = -120;
 const valuesWheelEndRotation = 0;
 const valuesWheelRenderOrder = [5, 1, 0, 2, 4, 3];
 const valuesWheelScrollStart = 0.92;
 const valuesWheelScrollEnd = 0.62;
+const valuesWheelSmoothnessOptions = [
+  {
+    id: "crisp",
+    label: "Crisp",
+    description: "Direct scroll response",
+    catchup: 1,
+  },
+  {
+    id: "smooth",
+    label: "Smooth",
+    description: "Balanced easing",
+    catchup: 0.18,
+  },
+  {
+    id: "silky",
+    label: "Silky",
+    description: "Softest client preview",
+    catchup: 0.075,
+  },
+];
 
 // Six keyed poses following the sketch: two-color wheel, larger two-color
 // wheel, four colors, five colors with two slices pushing out, six colors with
@@ -495,6 +523,7 @@ const buildSlicePath = ({
 
 const initValuesWheel = () => {
   const valuesSection = document.querySelector(".values-section");
+  const valuesHeading = document.querySelector(".values-intro h1");
   const valuesWheel = document.querySelector(".values-wheel");
   const valuesWheelGraphic = document.querySelector(".values-wheel-graphic");
   const valueTooltip = document.querySelector(".value-tooltip");
@@ -600,7 +629,44 @@ const initValuesWheel = () => {
     return { rotor, slices };
   };
 
+  const prepareValuesHeading = () => {
+    if (!valuesHeading) {
+      return;
+    }
+
+    const words = valuesHeading.textContent.trim().split(/\s+/);
+    valuesHeading.textContent = "";
+
+    words.forEach((word, index) => {
+      const wordElement = document.createElement("span");
+      wordElement.className = "values-heading-word";
+      wordElement.textContent = word;
+      wordElement.style.setProperty("--word-index", String(index));
+      valuesHeading.appendChild(wordElement);
+
+      if (index < words.length - 1) {
+        valuesHeading.appendChild(document.createTextNode(" "));
+      }
+    });
+  };
+
+  prepareValuesHeading();
+
   const { rotor: valuesWheelRotor, slices: wheelSlices } = buildValuesWheel();
+  let activeSmoothness = valuesWheelSmoothnessOptions[1];
+  let targetWheelProgress = 0;
+  let renderedWheelProgress = 0;
+  let smoothnessFrame = null;
+  const smoothnessButtons = new Map();
+
+  const setSmoothnessButtonState = () => {
+    smoothnessButtons.forEach((button, id) => {
+      const isActive = id === activeSmoothness.id;
+      button.classList.toggle("is-active", isActive);
+      button.setAttribute("aria-pressed", String(isActive));
+    });
+  };
+
   const applyValuesWheelRenderOrder = () => {
     valuesWheelRenderOrder.forEach((index) => {
       valuesWheelRotor.appendChild(wheelSlices[index].group);
@@ -694,17 +760,63 @@ const initValuesWheel = () => {
     });
   };
 
+  const buildValuesWheelSmoothnessControls = () => {
+    const controls = document.createElement("div");
+    controls.className = "values-smoothness-controls";
+    controls.setAttribute("aria-label", "Wheel animation smoothness");
+
+    const label = document.createElement("span");
+    label.className = "values-smoothness-label";
+    label.textContent = "Animation smoothness";
+    controls.appendChild(label);
+
+    valuesWheelSmoothnessOptions.forEach((option) => {
+      const button = document.createElement("button");
+      button.className = "values-smoothness-control";
+      button.type = "button";
+      button.innerHTML = `
+        <span class="values-smoothness-control-title">${option.label}</span>
+        <span class="values-smoothness-control-copy">${option.description}</span>
+      `;
+      button.setAttribute(
+        "aria-label",
+        `${option.label} animation smoothness: ${option.description}`
+      );
+      button.setAttribute("aria-pressed", "false");
+      button.addEventListener("click", () => {
+        activeSmoothness = option;
+        setSmoothnessButtonState();
+      });
+      smoothnessButtons.set(option.id, button);
+      controls.appendChild(button);
+    });
+
+    valuesWheel.insertAdjacentElement("afterend", controls);
+    setSmoothnessButtonState();
+  };
+
   const buildValuesWheelFrameControls = () => {
     const controls = document.createElement("div");
     controls.className = "values-frame-controls";
     controls.setAttribute("aria-label", "Wheel animation frames");
 
+    const label = document.createElement("span");
+    label.className = "values-frame-controls-label";
+    label.textContent = "Animation stages";
+    controls.appendChild(label);
+
     valuesWheelFrameStops.forEach((progress, index) => {
       const button = document.createElement("button");
       button.className = "values-frame-control";
       button.type = "button";
-      button.textContent = String(index + 1);
-      button.setAttribute("aria-label", `Frame ${index + 1}`);
+      button.innerHTML = `
+        <span class="values-frame-control-number">${index + 1}</span>
+        <span class="values-frame-control-label">${valuesWheelFrameLabels[index]}</span>
+      `;
+      button.setAttribute(
+        "aria-label",
+        `Animation stage ${index + 1}: ${valuesWheelFrameLabels[index]}`
+      );
       button.addEventListener("click", () => {
         scrollValuesWheelToProgress(progress);
       });
@@ -715,6 +827,7 @@ const initValuesWheel = () => {
   };
 
   buildValuesWheelFrameControls();
+  buildValuesWheelSmoothnessControls();
 
   if (valuesMobileList) {
     valuesMobileList.innerHTML = valuesWheelConfig
@@ -731,6 +844,18 @@ const initValuesWheel = () => {
       )
       .join("");
   }
+
+  const updateValuesHeading = (scrollProgress = 0) => {
+    if (!valuesHeading) {
+      return;
+    }
+
+    const headingProgress = easeSliceArrival(clamp(scrollProgress / 0.34));
+    valuesHeading.style.setProperty(
+      "--values-heading-progress",
+      headingProgress.toFixed(3)
+    );
+  };
 
   const updateValuesWheelShape = (scrollProgress = 0) => {
     const clampedProgress = clamp(scrollProgress);
@@ -760,6 +885,7 @@ const initValuesWheel = () => {
     const upperFrame = valuesWheelFrames[upperFrameIndex];
     const isSettled = clampedProgress >= 0.999;
 
+    updateValuesHeading(clampedProgress);
     valuesWheel.classList.toggle("is-scroll-settled", isSettled);
     if (!isSettled) {
       clearHoverTimers();
@@ -816,14 +942,56 @@ const initValuesWheel = () => {
     });
   };
 
+  const queueSmoothValuesWheelMorph = () => {
+    if (smoothnessFrame !== null) {
+      return;
+    }
+
+    smoothnessFrame = window.requestAnimationFrame(() => {
+      smoothnessFrame = null;
+
+      if (activeSmoothness.catchup >= 1) {
+        renderedWheelProgress = targetWheelProgress;
+      } else {
+        renderedWheelProgress = lerp(
+          renderedWheelProgress,
+          targetWheelProgress,
+          activeSmoothness.catchup
+        );
+
+        if (Math.abs(targetWheelProgress - renderedWheelProgress) < 0.001) {
+          renderedWheelProgress = targetWheelProgress;
+        }
+      }
+
+      updateValuesWheelShape(renderedWheelProgress);
+
+      if (renderedWheelProgress !== targetWheelProgress) {
+        queueSmoothValuesWheelMorph();
+      }
+    });
+  };
+
+  const setValuesWheelTargetProgress = (progress, immediate = false) => {
+    targetWheelProgress = clamp(progress);
+
+    if (immediate || activeSmoothness.catchup >= 1) {
+      renderedWheelProgress = targetWheelProgress;
+      updateValuesWheelShape(renderedWheelProgress);
+      return;
+    }
+
+    queueSmoothValuesWheelMorph();
+  };
+
   const updateValuesWheelScrollMorph = () => {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      updateValuesWheelShape(1);
+      setValuesWheelTargetProgress(1, true);
       return;
     }
 
     if (!valuesSection) {
-      updateValuesWheelShape(1);
+      setValuesWheelTargetProgress(1, true);
       return;
     }
 
@@ -835,7 +1003,7 @@ const initValuesWheel = () => {
     const end = viewportHeight * valuesWheelScrollEnd;
     const rawProgress = (start - wheelCenter) / (start - end);
 
-    updateValuesWheelShape(clamp(rawProgress));
+    setValuesWheelTargetProgress(rawProgress);
   };
 
   wheelSlices.forEach(({ group }, index) => {
