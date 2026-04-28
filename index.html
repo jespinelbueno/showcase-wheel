@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Values Wheel Showcase</title>
+    <link rel="stylesheet" href="./showcase-wheel.css" />
+  </head>
+  <body>
+    <main class="showcase-wheel-page">
+      <section class="showcase-wheel-intro" aria-label="Values wheel preview">
+        <p>Scroll to preview the wheel animation.</p>
+      </section>
+
+      <section class="values-section" aria-labelledby="values-heading">
+        <div class="values-intro">
+          <h1 id="values-heading">our values.</h1>
+        </div>
+
+        <div class="values-wheel">
+          <svg
+            class="values-wheel-graphic"
+            viewBox="0 0 700 700"
+            aria-hidden="true"
+          ></svg>
+
+          <aside class="value-tooltip" aria-live="polite">
+            <div class="value-tooltip-arrow" aria-hidden="true">
+              <img
+                class="value-tooltip-arrow-asset"
+                src="./assets/arrow1.svg"
+                alt=""
+              />
+            </div>
+            <div class="value-tooltip-content">
+              <h2 class="value-tooltip-title">Responsibility</h2>
+              <p class="value-tooltip-copy">
+                We take ownership of the work, the details, and the
+                follow-through.
+              </p>
+            </div>
+          </aside>
+        </div>
+
+        <div class="values-mobile-list" aria-label="Core values list"></div>
+      </section>
+
+      <section class="showcase-wheel-outro" aria-label="End of preview"></section>
+    </main>
+
+    <script src="./showcase-wheel.js"></script>
+  </body>
+</html>
